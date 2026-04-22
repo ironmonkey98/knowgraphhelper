@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.egg-info/
+dist/
+.DS_Store
+.env
+node_modules/
+.playwright-mcp/
+*.log
+prompt-dialog.png
