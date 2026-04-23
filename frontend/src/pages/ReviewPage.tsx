@@ -155,7 +155,7 @@ export function ReviewPage() {
       </div>
 
       {/* 双栏主体 */}
-      <div className="grid grid-cols-2 gap-4" style={{ height: 'calc(100vh - 200px)' }}>
+      <div className="grid gap-4" style={{ height: 'calc(100vh - 200px)', gridTemplateColumns: '2fr 3fr' }}>
         {/* 左：原始 Markdown */}
         <div className="bg-white rounded-xl card-shadow border border-border overflow-hidden flex flex-col">
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0" style={{ background: '#F5F7FA' }}>
@@ -260,10 +260,11 @@ function FieldRow({ name, label, value, snippet, highlight, onChange }: FieldRow
         )}
       </div>
       {isArr ? (
-        <Input
+        <Textarea
           value={(value as string[]).join('；')}
           onChange={(e) => onChange(e.target.value.split('；').filter(Boolean))}
-          className="text-sm h-8"
+          className="text-sm resize-none leading-relaxed"
+          rows={2}
         />
       ) : isObj ? (
         <Textarea
