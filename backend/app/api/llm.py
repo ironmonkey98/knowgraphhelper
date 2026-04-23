@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Request
 
 import httpx
@@ -5,6 +7,8 @@ import httpx
 from app.core.config import settings
 from app.core.errors import llm_proxy_error
 from app.schemas.llm import ChatRequest
+
+logger = logging.getLogger("kgh.llm")
 
 router = APIRouter(tags=["llm"])
 
@@ -45,14 +49,21 @@ async def llm_chat(body: ChatRequest, request: Request):
     if body.max_tokens is not None:
         payload["max_tokens"] = body.max_tokens
 
+    logger.info(f"LLM 请求 → {url} model={model} msgs={len(body.messages)} temp={body.temperature}")
+
     # 每请求新建 client，凭证不落盘
     async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
         try:
             resp = await client.post(url, json=payload, headers=headers)
         except httpx.TimeoutException:
+            logger.error(f"LLM 超时 ({settings.llm_timeout_seconds}s)")
             raise llm_proxy_error(504, "LLM 请求超时")
-        except httpx.ConnectError:
+        except httpx.ConnectError as e:
+            logger.error(f"LLM 连接失败: {url} → {e}")
             raise llm_proxy_error(502, "无法连接 LLM 服务")
+        except Exception as e:
+            logger.error(f"LLM 未知异常: {type(e).__name__}: {e}")
+            raise llm_proxy_error(502, f"LLM 请求异常: {e}")
 
     # 映射上游错误码
     if resp.status_code >= 400:
@@ -61,6 +72,8 @@ async def llm_chat(body: ChatRequest, request: Request):
             detail = resp.json().get("error", {}).get("message", resp.text)
         except Exception:
             detail = resp.text
+        logger.error(f"LLM 上游错误 [{resp.status_code}→{mapped}]: {detail[:500]}")
         raise llm_proxy_error(mapped, detail)
 
+    logger.info(f"LLM 响应 OK [{resp.status_code}] len={len(resp.content)}")
     return resp.json()

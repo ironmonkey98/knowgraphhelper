@@ -16,7 +16,6 @@ export function PromptConfigDialog({ open, onOpenChange }: Props) {
   const setCustomPrompt = usePromptStore((s) => s.setCustomPrompt)
   const [draft, setDraft] = useState('')
 
-  // 每次打开同步最新值
   useEffect(() => {
     if (open) {
       setDraft(customPrompt ?? DEFAULT_SYSTEM_PROMPT)
@@ -37,17 +36,24 @@ export function PromptConfigDialog({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-full">
-        <DialogHeader>
+      {/* 固定最大高度，内部可滚动 */}
+      <DialogContent className="max-w-3xl w-full flex flex-col" style={{ maxHeight: '75vh' }}>
+        <DialogHeader className="shrink-0">
           <DialogTitle>提示词设置</DialogTitle>
+          <p className="text-xs text-muted-foreground mt-1">修改 LLM 提取时使用的系统提示词，可上下滚动查看全文</p>
         </DialogHeader>
-        <Textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          className="font-mono text-xs leading-relaxed resize-y"
-          rows={30}
-        />
-        <DialogFooter className="gap-2 mt-2">
+
+        {/* 可滚动文本区域容器 */}
+        <div className="flex-1 overflow-y-auto min-h-0 rounded-lg border border-border bg-muted/30">
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="font-mono text-xs leading-relaxed resize-none border-0 bg-transparent focus-visible:ring-0 min-h-full"
+            style={{ minHeight: '320px' }}
+          />
+        </div>
+
+        <DialogFooter className="shrink-0 gap-2 mt-2">
           <Button variant="outline" onClick={handleReset}>恢复默认</Button>
           <Button onClick={handleSave}>保存</Button>
         </DialogFooter>

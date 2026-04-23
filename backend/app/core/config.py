@@ -11,7 +11,13 @@ class Settings:
 
     def __post_init__(self):
         if self.cors_origins is None:
-            object.__setattr__(self, "cors_origins", ["http://localhost:5173"])
+            # 同时支持 Vite 默认端口和端口被占用时的备选端口
+            object.__setattr__(self, "cors_origins", [
+                "http://localhost:5173",
+                "http://localhost:5174",
+                "http://127.0.0.1:5173",
+                "http://127.0.0.1:5174",
+            ])
 
 
 settings = Settings()

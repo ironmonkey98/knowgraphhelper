@@ -88,3 +88,37 @@
 - **Prompt 全面更新**: 按用户提供的完整提示词重写，含关键词四类组合规则、分类体系、置信度判定
 - **新增功能**: 提示词设置弹窗（可编辑/保存/恢复默认，localStorage 持久化）
 - **LLM 超时**: 60s → 180s
+
+### 2026-04-23 异步转换重构
+- **问题**: 转换逻辑在 UploadPage 组件内（async 闭包），用户切页后 navigate/toast/setProcessing 失效，按钮卡死
+- **方案**: 抽取 `extractionService.ts`，通过 `useXxxStore.getState()` 直接操作 Zustand store，组件无关
+- **改动**:
+  1. 新建 `frontend/src/services/extractionService.ts` — 异步处理核心，后台运行 parse → LLM → Zod 校验
+  2. 简化 `UploadPage.tsx` — 调用 service 后立即 navigate('/records')
+  3. 增强 `RecordsPage.tsx` — parsing/extracting 加旋转动画 + 错误详情显示
+- **验证**: simple_paper.pdf + 早绝经指南(1.6MB/12页) 均通过，切页后状态不丢失，自动更新到待审核
+
+### 2026-04-23 UI 全面重设计（参考图风格）
+- **设计基准**: 微信图片_20260423082710_403_10.png（紫色/靛蓝品牌 SaaS 风格）
+- **系统名称**: 改为「小添医钥」，使用 logo.png（已复制到 frontend/public/）
+- **改动**:
+  1. `index.css` — 主题色从蓝色改为紫色/靛蓝 oklch(0.575 0.22 264)，背景浅灰紫色
+  2. `AppShell.tsx` — 紫色渐变顶栏 + logo.png + LLM状态指示 + 配置按钮右移
+  3. `UploadPage.tsx` — 两栏布局（左主区70% + 右侧面板30%），自定义拖拽区 + 布局选择卡片
+  4. `RecordsPage.tsx` — 文件列表风格替代表格，状态彩色Badge + 置信度进度条 + 统计卡片
+  5. `ReviewPage.tsx` — 统一圆角卡片风格，返回按钮，左 Markdown 右字段表单
+  6. `PromptConfigDialog.tsx` — 固定 75vh 高度，内部滚动，窗体不再过长
+
+### 2026-04-23 后端异步提取重构（解决刷新中断问题）
+- **问题**: 提取流水线运行在前端 JS，刷新页面导致任务中断
+- **方案**: 流水线整体移到后端，前端只负责提交 + 轮询
+- **新增**:
+  1. `backend/app/schemas/extract.py` — Pydantic 校验（对齐前端 Zod schema）
+  2. `backend/app/api/extract.py` — `POST /api/extract`（提交任务）+ `GET /api/tasks/{task_id}`（轮询）+ 内存任务表 + 完整流水线（parse→LLM→Pydantic 校验+重试）
+  3. `backend/app/core/config.py` — CORS 支持 5173/5174 双端口
+- **改动**:
+  1. `frontend/src/types/index.ts` — Document 加 `task_id?` 字段
+  2. `frontend/src/services/extractionService.ts` — 改为 提交→轮询 模式，含 resumeAllPending() 用于刷新恢复
+  3. `frontend/src/pages/UploadPage.tsx` — 按钮加 submitting 状态
+  4. `frontend/src/App.tsx` — 启动时调用 resumeAllPending() 恢复轮询
+  5. `frontend/src/pages/RecordsPage.tsx` — 错误状态 Badge 加 Tooltip 显示错误原因

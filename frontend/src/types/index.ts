@@ -33,6 +33,8 @@ export interface Document {
   error_message?: string
   reviewed_at?: number
   prompt_version?: string
+  /** 后端异步任务 ID，用于刷新后恢复轮询 */
+  task_id?: string
 }
 
 export interface LlmConfig {
