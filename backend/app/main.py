@@ -1,8 +1,11 @@
 import logging
 import time
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.api.parse import router as parse_router
@@ -43,3 +46,18 @@ app.include_router(extract_router, prefix="/api")
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# ── 生产模式：托管前端静态文件（SPA） ──────────────────────────────────────────
+# 前端 build 产物放在 backend/static/ 目录下
+_STATIC_DIR = Path(__file__).parent.parent / "static"
+
+if _STATIC_DIR.exists():
+    # 挂载静态资源（JS/CSS/图片等）
+    app.mount("/assets", StaticFiles(directory=_STATIC_DIR / "assets"), name="assets")
+
+    # SPA 兜底：所有非 /api 路由返回 index.html，由前端路由接管
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        index = _STATIC_DIR / "index.html"
+        return FileResponse(index)

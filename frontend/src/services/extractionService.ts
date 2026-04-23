@@ -126,7 +126,7 @@ export const extractionService = {
             markdown: task.markdown || '',
             page_count: task.page_count ?? undefined,
             parse_time_ms: task.parse_time_ms ?? undefined,
-            fields: task.result.fields as ExtractedFields,
+            fields: task.result.fields as unknown as ExtractedFields,
             source_snippets: task.result.source_snippets ?? {},
             extraction_confidence: task.result.extraction_confidence ?? 0,
           })

@@ -177,7 +177,7 @@ export function RecordsPage() {
                   {/* 序号 / 选择框 */}
                   <div className="w-8 shrink-0 flex items-center justify-center">
                     {isSelected ? (
-                      <Checkbox checked onChange={() => toggleSelect(doc.id)} />
+                      <Checkbox checked onCheckedChange={() => toggleSelect(doc.id)} />
                     ) : (
                       <span
                         className="text-xs w-8 text-center cursor-pointer select-none"
