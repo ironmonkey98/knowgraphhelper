@@ -34,50 +34,80 @@ function formatSize(bytes: number) {
 export function UploadPage() {
   const navigate = useNavigate()
   const isConfigured = useLlmConfigStore((s) => s.isConfigured)
-  const [docType, setDocType] = useState<DocType>('single_col')
-  const [file, setFile] = useState<File | null>(null)
+  const [docType, setDocType] = useState<DocType>('double_col')
+  const [files, setFiles] = useState<File[]>([])
   const [showConfig, setShowConfig] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const MAX_FILES = 10
+
+  // 合并新文件到已有列表（去重 + 上限过滤）
+  const addFiles = useCallback((incoming: FileList | File[]) => {
+    const pdfs = Array.from(incoming).filter((f) => {
+      if (!f.name.toLowerCase().endsWith('.pdf')) {
+        toast.error(`${f.name} 不是 PDF 文件，已跳过`)
+        return false
+      }
+      return true
+    })
+    if (pdfs.length === 0) return
+
+    setFiles((prev) => {
+      const existingNames = new Set(prev.map((f) => f.name))
+      const unique = pdfs.filter((f) => {
+        if (existingNames.has(f.name)) {
+          toast.error(`${f.name} 已存在，已跳过`)
+          return false
+        }
+        return true
+      })
+      const merged = [...prev, ...unique]
+      if (merged.length > MAX_FILES) {
+        toast.error(`最多支持 ${MAX_FILES} 个文件，已截断`)
+        return merged.slice(0, MAX_FILES)
+      }
+      return merged
+    })
+  }, [])
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDragging(false)
-    const dropped = e.dataTransfer.files[0]
-    if (dropped?.name.toLowerCase().endsWith('.pdf')) {
-      setFile(dropped)
-    } else {
-      toast.error('仅支持 PDF 文件')
-    }
-  }, [])
+    addFiles(e.dataTransfer.files)
+  }, [addFiles])
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0]
-    if (selected) setFile(selected)
-  }, [])
+    if (e.target.files) addFiles(e.target.files)
+  }, [addFiles])
 
-  const handleRemoveFile = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setFile(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
+  const handleRemoveFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
   const startProcessing = async () => {
-    if (!file) return toast.error('请先选择 PDF 文件')
+    if (files.length === 0) return toast.error('请先选择 PDF 文件')
     if (!isConfigured()) {
       setShowConfig(true)
       return
     }
     setSubmitting(true)
-    try {
-      await extractionService.startExtraction(file, docType)
+    let failCount = 0
+    const results = await Promise.allSettled(
+      files.map((f) => extractionService.startExtraction(f, docType)),
+    )
+    for (const r of results) {
+      if (r.status === 'rejected') {
+        failCount++
+        const msg = r.reason instanceof Error ? r.reason.message : '提交失败'
+        toast.error(msg)
+      }
+    }
+    setSubmitting(false)
+    // 有成功的就跳转
+    if (failCount < files.length) {
       navigate('/records')
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '提交失败'
-      toast.error(msg)
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -95,56 +125,36 @@ export function UploadPage() {
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border" style={{ background: '#F5F7FA' }}>
             <PdfIcon className="h-4 w-4" style={{ color: '#7B7CE5' } as React.CSSProperties} />
             <span className="text-sm font-medium" style={{ color: '#333333' }}>原始材料</span>
-            {file && (
-              <span className="ml-auto text-xs" style={{ color: '#666666' }}>已选择 1 个文件</span>
+            {files.length > 0 && (
+              <span className="ml-auto text-xs" style={{ color: '#666666' }}>已选择 {files.length}/{MAX_FILES} 个文件</span>
             )}
           </div>
 
           <div className="p-4 space-y-3">
             {/* 拖拽区 */}
             <div
-              className="relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all"
+              className="relative border-2 border-dashed rounded-xl text-center cursor-pointer transition-all"
               style={{
-                borderColor: dragging ? '#7B7CE5' : file ? 'rgba(123,124,229,0.35)' : '#E2E5EC',
-                background: dragging ? 'rgba(123,124,229,0.05)' : file ? 'rgba(123,124,229,0.03)' : 'transparent',
+                borderColor: dragging ? '#7B7CE5' : files.length > 0 ? 'rgba(123,124,229,0.35)' : '#E2E5EC',
+                background: dragging ? 'rgba(123,124,229,0.05)' : files.length > 0 ? 'rgba(123,124,229,0.03)' : 'transparent',
+                padding: files.length > 0 ? '12px' : '32px 8px',
               }}
               onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
               onDragLeave={() => setDragging(false)}
               onDrop={handleDrop}
-              onClick={() => !file && fileInputRef.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
             >
               <input
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf"
+                multiple
                 className="hidden"
                 onChange={handleFileSelect}
                 onClick={(e) => e.stopPropagation()}
               />
 
-              {file ? (
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: '#FEF2F2', color: '#F15F5F' }}>
-                    <PdfIcon className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="text-sm font-medium truncate" style={{ color: '#333333' }}>{file.name}</p>
-                    <p className="text-xs" style={{ color: '#666666' }}>{formatSize(file.size)}</p>
-                  </div>
-                  <button
-                    onClick={handleRemoveFile}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors"
-                    style={{ color: '#999' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.color = '#F15F5F' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#999' }}
-                    title="移除文件"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              ) : (
+              {files.length === 0 ? (
                 <div className="space-y-2">
                   <div className="flex justify-center">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: 'rgba(123,124,229,0.1)' }}>
@@ -158,21 +168,60 @@ export function UploadPage() {
                       <span className="font-medium cursor-pointer" style={{ color: '#7B7CE5' }}>点击浏览文件</span>
                     </p>
                   </div>
-                  <p className="text-xs" style={{ color: '#999' }}>仅支持电子版 PDF · 最大 50 MB</p>
+                  <p className="text-xs" style={{ color: '#999' }}>仅支持电子版 PDF · 最多 {MAX_FILES} 个 · 单文件最大 50 MB</p>
                 </div>
+              ) : (
+                <p className="text-xs" style={{ color: '#7B7CE5' }}>
+                  继续拖拽或点击添加更多 PDF 文件
+                </p>
               )}
             </div>
 
-            {file && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-2 text-xs text-center rounded-lg border border-dashed transition-colors"
-                style={{ color: '#666666', borderColor: '#E2E5EC' }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = '#7B7CE5'; e.currentTarget.style.borderColor = 'rgba(123,124,229,0.4)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = '#666666'; e.currentTarget.style.borderColor = '#E2E5EC' }}
-              >
-                点击重新选择文件
-              </button>
+            {/* 文件列表 */}
+            {files.length > 0 && (
+              <div className="space-y-2">
+                {files.map((f, i) => (
+                  <div
+                    key={`${f.name}-${i}`}
+                    className="flex items-center gap-3 rounded-lg border border-border px-3 py-2"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: '#FEF2F2', color: '#F15F5F' }}>
+                      <PdfIcon className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="text-sm font-medium truncate" style={{ color: '#333333' }}>{f.name}</p>
+                      <p className="text-xs" style={{ color: '#666666' }}>{formatSize(f.size)}</p>
+                    </div>
+                    {!submitting && (
+                      <button
+                        onClick={() => handleRemoveFile(i)}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors"
+                        style={{ color: '#999' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.color = '#F15F5F' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#999' }}
+                        title="移除文件"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {/* 追加按钮 */}
+                {!submitting && files.length < MAX_FILES && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-2 text-xs text-center rounded-lg border border-dashed transition-colors"
+                    style={{ color: '#666666', borderColor: '#E2E5EC' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#7B7CE5'; e.currentTarget.style.borderColor = 'rgba(123,124,229,0.4)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#666666'; e.currentTarget.style.borderColor = '#E2E5EC' }}
+                  >
+                    点击继续添加文件
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -284,9 +333,9 @@ export function UploadPage() {
         {/* 进入解析按钮 — 主品牌色 */}
         <button
           onClick={startProcessing}
-          disabled={!file || submitting}
+          disabled={files.length === 0 || submitting}
           className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all"
-          style={file && !submitting ? {
+          style={files.length > 0 && !submitting ? {
             background: 'linear-gradient(90deg, #7B7CE5 0%, #6465D4 100%)',
             color: '#fff',
             boxShadow: '0 4px 14px rgba(123,124,229,0.35)',
@@ -296,10 +345,10 @@ export function UploadPage() {
             cursor: 'not-allowed',
           }}
           onMouseEnter={(e) => {
-            if (file && !submitting) e.currentTarget.style.boxShadow = '0 6px 20px rgba(123,124,229,0.45)'
+            if (files.length > 0 && !submitting) e.currentTarget.style.boxShadow = '0 6px 20px rgba(123,124,229,0.45)'
           }}
           onMouseLeave={(e) => {
-            if (file && !submitting) e.currentTarget.style.boxShadow = '0 4px 14px rgba(123,124,229,0.35)'
+            if (files.length > 0 && !submitting) e.currentTarget.style.boxShadow = '0 4px 14px rgba(123,124,229,0.35)'
           }}
         >
           {submitting ? (
@@ -312,7 +361,7 @@ export function UploadPage() {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
-              {file ? '进入解析与提取' : '请先选择文件'}
+              {files.length > 0 ? `进入解析与提取（${files.length}篇）` : '请先选择文件'}
             </>
           )}
         </button>
