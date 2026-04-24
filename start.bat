@@ -8,6 +8,25 @@ echo.
 
 set ROOT=%~dp0
 
+echo [0/2] Stopping existing services...
+
+REM 按窗口标题杀掉上次启动的两个 cmd 窗口
+taskkill /FI "WINDOWTITLE eq MedKey-Backend*" /F >NUL 2>&1
+taskkill /FI "WINDOWTITLE eq MedKey-Frontend*" /F >NUL 2>&1
+
+REM 释放 8000 端口（杀掉占用进程）
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":8000 " ^| findstr "LISTENING" 2^>NUL') do (
+    taskkill /PID %%P /F >NUL 2>&1
+)
+
+REM 释放 5173 端口
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":5173 " ^| findstr "LISTENING" 2^>NUL') do (
+    taskkill /PID %%P /F >NUL 2>&1
+)
+
+echo        Existing services stopped.
+echo.
+
 where uv 2>NUL
 if errorlevel 1 (
     echo [ERROR] uv not found. Run install.bat first.
