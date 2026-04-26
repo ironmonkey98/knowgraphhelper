@@ -1,5 +1,6 @@
 import asyncio
 import json
+from pathlib import Path
 
 import httpx
 import pytest
@@ -8,7 +9,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 
-FIXTURES = "/Users/yehong/knowgraphhelper/fixtures"
+FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 
 LLM_HEADERS = {
     "X-LLM-Base-URL": "https://fake-llm.example.com/v1",
@@ -40,13 +41,13 @@ MOCK_LLM_RESP = {
 
 @pytest.fixture
 def simple_pdf() -> bytes:
-    with open(f"{FIXTURES}/simple_paper.pdf", "rb") as f:
+    with open(FIXTURES / "simple_paper.pdf", "rb") as f:
         return f.read()
 
 
 @pytest.fixture
 def guideline_pdf() -> bytes:
-    with open(f"{FIXTURES}/guideline.pdf", "rb") as f:
+    with open(FIXTURES / "guideline.pdf", "rb") as f:
         return f.read()
 
 

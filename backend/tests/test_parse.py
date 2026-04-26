@@ -1,26 +1,27 @@
 import pytest
+from pathlib import Path
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 
-FIXTURES = "/Users/yehong/knowgraphhelper/fixtures"
+FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 
 
 @pytest.fixture
 def simple_pdf() -> bytes:
-    with open(f"{FIXTURES}/simple_paper.pdf", "rb") as f:
+    with open(FIXTURES / "simple_paper.pdf", "rb") as f:
         return f.read()
 
 
 @pytest.fixture
 def empty_pdf() -> bytes:
-    with open(f"{FIXTURES}/empty_page.pdf", "rb") as f:
+    with open(FIXTURES / "empty_page.pdf", "rb") as f:
         return f.read()
 
 
 @pytest.fixture
 def guideline_pdf() -> bytes:
-    with open(f"{FIXTURES}/guideline.pdf", "rb") as f:
+    with open(FIXTURES / "guideline.pdf", "rb") as f:
         return f.read()
 
 
