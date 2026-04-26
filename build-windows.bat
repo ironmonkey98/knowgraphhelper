@@ -80,6 +80,7 @@ uv run --extra dev --with pyinstaller pyinstaller ^
     --onedir ^
     --add-data "static;static" ^
     --collect-all pymupdf4llm ^
+    --collect-data pymupdf ^
     "run_app.py"
 if errorlevel 1 (
     echo [ERROR] PyInstaller build failed.

@@ -58,7 +58,54 @@ jobs:
             --onedir `
             --add-data "static;static" `
             --collect-all pymupdf4llm `
+            --collect-data pymupdf `
             "run_app.py"
+
+      - name: Smoke test executable
+        shell: pwsh
+        run: |
+          $out = "backend/dist/XiaoTianMedKey/exe.out.log"
+          $err = "backend/dist/XiaoTianMedKey/exe.err.log"
+          $proc = Start-Process `
+            -FilePath "backend/dist/XiaoTianMedKey/XiaoTianMedKey.exe" `
+            -PassThru `
+            -RedirectStandardOutput $out `
+            -RedirectStandardError $err
+
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 30; $i++) {
+              Start-Sleep -Seconds 1
+              if ($proc.HasExited) {
+                break
+              }
+              try {
+                $resp = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health" -TimeoutSec 2
+                if ($resp.status -eq "ok") {
+                  $ready = $true
+                  break
+                }
+              } catch {
+                continue
+              }
+            }
+
+            if (-not $ready) {
+              if (Test-Path $out) {
+                Write-Host "=== exe stdout ==="
+                Get-Content $out
+              }
+              if (Test-Path $err) {
+                Write-Host "=== exe stderr ==="
+                Get-Content $err
+              }
+              throw "Executable did not become healthy."
+            }
+          } finally {
+            if (-not $proc.HasExited) {
+              Stop-Process -Id $proc.Id -Force
+            }
+          }
 
       - name: Create release zip
         shell: pwsh
