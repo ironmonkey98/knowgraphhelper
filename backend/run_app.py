@@ -5,6 +5,7 @@ import webbrowser
 import uvicorn
 
 from app.core.config import settings
+from app.main import app
 
 
 def open_browser() -> None:
@@ -14,4 +15,4 @@ def open_browser() -> None:
 
 if __name__ == "__main__":
     threading.Thread(target=open_browser, daemon=True).start()
-    uvicorn.run("app.main:app", host=settings.host, port=settings.port, reload=False)
+    uvicorn.run(app, host=settings.host, port=settings.port, reload=False)
