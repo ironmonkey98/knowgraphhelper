@@ -1,0 +1,79 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build-windows:
+    name: Build Windows package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package.json
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+
+      - name: Copy frontend assets
+        shell: pwsh
+        run: |
+          if (Test-Path "backend/static") {
+            Remove-Item "backend/static" -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path "backend/static" | Out-Null
+          Copy-Item "frontend/dist/*" "backend/static" -Recurse -Force
+
+      - name: Test backend
+        working-directory: backend
+        run: uv run --extra dev pytest
+
+      - name: Build executable
+        working-directory: backend
+        run: |
+          uv run --extra dev --with pyinstaller pyinstaller `
+            --noconfirm `
+            --clean `
+            --name XiaoTianMedKey `
+            --onedir `
+            --add-data "static;static" `
+            --collect-all pymupdf4llm `
+            "run_app.py"
+
+      - name: Create release zip
+        shell: pwsh
+        run: |
+          if (Test-Path "XiaoTianMedKey-windows.zip") {
+            Remove-Item "XiaoTianMedKey-windows.zip" -Force
+          }
+          Compress-Archive `
+            -Path "backend/dist/XiaoTianMedKey/*" `
+            -DestinationPath "XiaoTianMedKey-windows.zip" `
+            -Force
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: XiaoTianMedKey-windows
+          path: XiaoTianMedKey-windows.zip
+          if-no-files-found: error

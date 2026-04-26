@@ -1,4 +1,5 @@
 import logging
+import sys
 import time
 from pathlib import Path
 
@@ -49,12 +50,21 @@ async def health():
 
 
 # ── 生产模式：托管前端静态文件（SPA） ──────────────────────────────────────────
-# 前端 build 产物放在 backend/static/ 目录下
-_STATIC_DIR = Path(__file__).parent.parent / "static"
+# 源码运行时读取 backend/static；PyInstaller 运行时读取打包资源目录中的 static。
+def get_static_dir() -> Path:
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    if bundle_dir:
+        return Path(bundle_dir) / "static"
+    return Path(__file__).parent.parent / "static"
+
+
+_STATIC_DIR = get_static_dir()
 
 if _STATIC_DIR.exists():
     # 挂载静态资源（JS/CSS/图片等）
-    app.mount("/assets", StaticFiles(directory=_STATIC_DIR / "assets"), name="assets")
+    assets_dir = _STATIC_DIR / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
     # SPA 兜底：所有非 /api 路由返回 index.html，由前端路由接管
     @app.get("/{full_path:path}")
